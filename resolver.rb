@@ -42,25 +42,24 @@ end
 
 class LinearizerResolver
 
-  attr_accessor :method_name, :parameters, :methods_list, :klass
+  attr_accessor :method_name, :parameters, :ancestor_list, :klass
 
   def initialize(method_name, parameters, klass)
     self.method_name = method_name.is_a?(Symbol) ? method_name.to_s : method_name
     self.parameters = parameters
     self.klass = klass
-    self.methods_list = []
+    self.ancestor_list = []
     self
   end
 
-  def add_method_to_list(method)
-    self.methods_list << method
+  def add_method_to_list(ancestor)
+    self.ancestor_list << ancestor
   end
 
   def method_from(ancestor, &blk)
     ancestor_overriden = self.klass.new.from_ancestor(ancestor)
-    ancestor_method = ancestor_overriden.method_missing(self.method_name.to_sym)
-    puts ancestor_method
-    self.add_method_to_list ancestor_method
+    ancestor_overriden.set_ancestor_method(self.method_name.to_sym)
+    self.add_method_to_list ancestor_overriden
     self
   end
 
@@ -69,14 +68,16 @@ class LinearizerResolver
   end
 
   def confirm
-    self.klass.class_eval %Q(
-      @@methods_list = #{self.methods_list}
-      define_method(#{self.method_name.to_sym}) { |*args|
-        @@methods_list.each do |method|
-          method.call *args
-        end
-      }
-    )
+    self.klass.class_eval %Q{
+    attr_accessor :methods_list
+
+    def #{self.method_name}(*args)
+      self.methods_list = #{self.ancestor_list}
+      self.methods_list.each do |method|
+       method.get_ancestor_method.call *args
+      end
+    end
+    }
   end
 end
 
@@ -86,11 +87,21 @@ class OverridenAncestor
   def initialize(subject, ancestor)
     @subject = subject
     @ancestor = ancestor
+    @ancestor_method = nil
+  end
+
+  def set_ancestor_method(method_name)
+    @ancestor_method = self.method_missing(method_name.to_sym)
   end
 
   def method_missing(sym)
     @ancestor.instance_method(sym).bind(@subject)
   end
+
+  def get_ancestor_method
+    @ancestor_method
+  end
+
 end
 
 class B1 < A
@@ -98,3 +109,4 @@ class B1 < A
   resolve_linearization(:m).method_from(M2).method_from(M1).mix_them
 end
 
+b=B1.new.m
