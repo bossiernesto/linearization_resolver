@@ -1,5 +1,5 @@
 require 'rspec'
-require_relative 'a'
+require_relative 'resolver'
 
 describe 'test from_ancestor modules' do
 
@@ -9,7 +9,7 @@ describe 'test from_ancestor modules' do
 
   it 'get m from B1' do
     b= B.new
-    puts b.from_ancestor(M1).m.call.should == 'module 1'
+    puts b.from_ancestor(eval(:M1.to_s.capitalize)).m.call.should == 'module 1'
   end
 
   it 'get m from B2' do

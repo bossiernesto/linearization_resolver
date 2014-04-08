@@ -68,6 +68,9 @@ class LinearizerResolver
   end
 
   def confirm
+
+    puts "#{self.ancestor_list}"
+
     self.klass.class_eval %Q{
     attr_accessor :methods_list
 
@@ -104,9 +107,9 @@ class OverridenAncestor
 
 end
 
-class B1 < A
-  include M2, M1
-  resolve_linearization(:m).method_from(M2).method_from(M1).mix_them
-end
-
-b=B1.new.m
+# class B1 < A
+#   include M2, M1
+#   resolve_linearization(:m).method_from(M2).method_from(M1).mix_them
+# end
+#
+# b=B1.new.m
