@@ -1,27 +1,3 @@
-module M1
-
-  def m
-    'module 1'
-  end
-end
-
-module M2
-  def m
-    'module 2'
-  end
-end
-
-class A
-  def m
-    'bleh'
-  end
-end
-
-class B < A
-  include M2, M1
-  #will get m from M2 as it's the nearest ancestor
-end
-
 module Kernel
   def from_ancestor(ancestor, &blk)
     @__from_ancestor ||= {}
@@ -34,22 +10,28 @@ module Kernel
 
   def resolve_linearization(method_sym)
     raise 'Method not implemented in ancestors' unless self.new.respond_to? method_sym
-    method = self.new.method(method_sym)
-    parameters = method.parameters
+    parameters = self.new.method(method_sym).parameters
     LinearizerResolver.new method_sym, parameters, self
   end
 end
 
 class LinearizerResolver
 
-  attr_accessor :method_name, :parameters, :ancestor_list, :klass
+  attr_accessor :method_name, :parameters, :ancestor_list, :klass, :overriden_ancestor
 
   def initialize(method_name, parameters, klass)
     self.method_name = method_name.is_a?(Symbol) ? method_name.to_s : method_name
     self.parameters = parameters
     self.klass = klass
-    self.ancestor_list = []
     self
+  end
+
+  def overriden_ancestor
+    @overriden_ancestor = @overriden_ancestor || []
+  end
+
+  def ancestor_list
+    @ancestor_list = @ancestor_list || []
   end
 
   def add_method_to_list(ancestor)
@@ -57,9 +39,8 @@ class LinearizerResolver
   end
 
   def method_from(ancestor, &blk)
-    ancestor_overriden = self.klass.new.from_ancestor(ancestor)
-    ancestor_overriden.set_ancestor_method(self.method_name.to_sym)
-    self.add_method_to_list ancestor_overriden
+    self.overriden_ancestor << self.klass.new.from_ancestor(ancestor)
+    self.ancestor_list << ancestor.to_s
     self
   end
 
@@ -68,17 +49,16 @@ class LinearizerResolver
   end
 
   def confirm
-
-    puts "#{self.ancestor_list}"
-
     self.klass.class_eval %Q{
-    attr_accessor :methods_list
+    attr_accessor :ancestor_list
 
     def #{self.method_name}(*args)
-      self.methods_list = #{self.ancestor_list}
-      self.methods_list.each do |method|
-       method.get_ancestor_method.call *args
+      result = nil
+      self.ancestor_list = #{self.ancestor_list}
+      self.ancestor_list.each do |ancestor|
+       result= self.from_ancestor(eval(ancestor.capitalize)).#{self.method_name}.call *args
       end
+      result
     end
     }
   end
@@ -94,7 +74,8 @@ class OverridenAncestor
   end
 
   def set_ancestor_method(method_name)
-    @ancestor_method = self.method_missing(method_name.to_sym)
+    method= method_name.is_a?(Symbol) ? method_name : method_name.to_sym
+    @ancestor_method = self.method_missing(method)
   end
 
   def method_missing(sym)
@@ -106,10 +87,3 @@ class OverridenAncestor
   end
 
 end
-
-# class B1 < A
-#   include M2, M1
-#   resolve_linearization(:m).method_from(M2).method_from(M1).mix_them
-# end
-#
-# b=B1.new.m
